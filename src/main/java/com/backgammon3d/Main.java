@@ -40,6 +40,7 @@ public class Main extends Application {
     private Label diceLabel;
     private Button rollButton;
     private Button newGameButton;
+    private Button abortButton;
     private ComboBox<String> whitePlayerCombo;
     private ComboBox<String> blackPlayerCombo;
 
@@ -52,6 +53,18 @@ public class Main extends Application {
     private TDNetwork tdNetwork;
     private Player whitePlayer;
     private Player blackPlayer;
+
+    // Spielzustand und Geschwindigkeit
+    private boolean gameInProgress = false;
+    private boolean abortRequested = false;
+    private Slider aiSpeedSlider;
+    private Label speedLabel;
+
+    // Controls die gesperrt werden
+    private Button trainButton;
+    private Button loadModelButton;
+    private MenuButton cameraMenu;
+    private Button resetCameraButton;
 
     @Override
     public void start(Stage primaryStage) {
@@ -101,17 +114,22 @@ public class Main extends Application {
         newGameButton = new Button("Neues Spiel");
         newGameButton.setOnAction(e -> newGame());
 
-        Button trainButton = new Button("KI trainieren");
+        abortButton = new Button("Spiel abbrechen");
+        abortButton.setOnAction(e -> abortGame());
+        abortButton.setDisable(true);  // Initial deaktiviert
+        abortButton.setStyle("-fx-background-color: #c0392b; -fx-text-fill: white;");
+
+        trainButton = new Button("KI trainieren");
         trainButton.setOnAction(e -> showTrainingDialog());
 
-        Button loadModelButton = new Button("Modell laden");
+        loadModelButton = new Button("Modell laden");
         loadModelButton.setOnAction(e -> loadModel());
 
         // Kamera-Steuerung
-        Button resetCameraButton = new Button("Kamera Reset");
+        resetCameraButton = new Button("Kamera Reset");
         resetCameraButton.setOnAction(e -> boardView.resetCamera());
 
-        MenuButton cameraMenu = new MenuButton("Ansicht");
+        cameraMenu = new MenuButton("Ansicht");
         MenuItem topDownItem = new MenuItem("Von oben");
         topDownItem.setOnAction(e -> boardView.setCameraTopDown());
         MenuItem angledItem = new MenuItem("Schräg");
@@ -134,6 +152,8 @@ public class Main extends Application {
 
         toolbar.getChildren().addAll(
             newGameButton,
+            abortButton,
+            new Separator(),
             trainButton,
             loadModelButton,
             new Separator(),
@@ -172,6 +192,33 @@ public class Main extends Application {
         confirmButton.setPrefWidth(150);
         confirmButton.setOnAction(e -> confirmMove());
 
+        // KI-Geschwindigkeit Slider
+        Label speedTitle = new Label("KI-Geschwindigkeit");
+        speedTitle.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+        aiSpeedSlider = new Slider(0, 100, 50);  // Min, Max, Default
+        aiSpeedSlider.setShowTickLabels(true);
+        aiSpeedSlider.setShowTickMarks(true);
+        aiSpeedSlider.setMajorTickUnit(25);
+        aiSpeedSlider.setMinorTickCount(4);
+        aiSpeedSlider.setPrefWidth(150);
+        aiSpeedSlider.setStyle("-fx-control-inner-background: #2c3e50;");
+
+        speedLabel = new Label("Normal (50%)");
+        speedLabel.setStyle("-fx-text-fill: #aaa; -fx-font-size: 11px;");
+
+        // Slider-Label aktualisieren
+        aiSpeedSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            int speed = newVal.intValue();
+            String text;
+            if (speed < 20) text = "Sehr langsam";
+            else if (speed < 40) text = "Langsam";
+            else if (speed < 60) text = "Normal";
+            else if (speed < 80) text = "Schnell";
+            else text = "Sehr schnell";
+            speedLabel.setText(text + " (" + speed + "%)");
+        });
+
         // Score display
         Label scoreTitle = new Label("Punkte");
         scoreTitle.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
@@ -189,6 +236,10 @@ public class Main extends Application {
             rollButton,
             undoButton,
             confirmButton,
+            new Separator(),
+            speedTitle,
+            aiSpeedSlider,
+            speedLabel,
             new Separator(),
             scoreTitle,
             whiteScore,
@@ -212,8 +263,12 @@ public class Main extends Application {
     }
 
     private void newGame() {
+        // Abort-Flag zurücksetzen
+        abortRequested = false;
+
         gameState = new GameState();
         boardView.setGameState(gameState);
+        boardView.clearAiHighlights();
         isWhiteTurn = true;
         currentDice = null;
         availableMoves = null;
@@ -223,6 +278,9 @@ public class Main extends Application {
         // Create players based on selection
         whitePlayer = createPlayer(whitePlayerCombo.getValue(), true);
         blackPlayer = createPlayer(blackPlayerCombo.getValue(), false);
+
+        // Controls sperren während des Spiels
+        setControlsLocked(true);
 
         updateStatus();
 
@@ -248,14 +306,21 @@ public class Main extends Application {
     }
 
     private void startAITurn() {
-        // Delay to make it visible
+        // Abbruch prüfen
+        if (abortRequested) return;
+
+        // Delay to make it visible (basierend auf Slider)
+        int delay = Math.max(getAiDelay() / 2, 200);
+
         new Thread(() -> {
             try {
-                Thread.sleep(500);
+                Thread.sleep(delay);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            Platform.runLater(this::executeAITurn);
+            if (!abortRequested) {
+                Platform.runLater(this::executeAITurn);
+            }
         }).start();
     }
 
@@ -289,18 +354,28 @@ public class Main extends Application {
     }
 
     private void executeAIMovesWithDelay(List<Move> moves, int index) {
+        // Abbruch prüfen
+        if (abortRequested) {
+            return;
+        }
+
+        // Verzögerung aus Slider berechnen
+        int delay = getAiDelay();
+
         if (index >= moves.size()) {
             // All moves done - clear highlights after short delay
             new Thread(() -> {
                 try {
-                    Thread.sleep(500);
+                    Thread.sleep(Math.max(delay / 2, 100));
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
-                Platform.runLater(() -> {
-                    boardView.clearAiHighlights();
-                    confirmMove();
-                });
+                if (!abortRequested) {
+                    Platform.runLater(() -> {
+                        boardView.clearAiHighlights();
+                        confirmMove();
+                    });
+                }
             }).start();
             return;
         }
@@ -317,11 +392,15 @@ public class Main extends Application {
         // Kurze Pause, damit der Spieler sieht, von wo nach wo gezogen wird
         new Thread(() -> {
             try {
-                Thread.sleep(600);  // Zeit zum Sehen des Ursprungsfeldes
+                Thread.sleep(delay);  // Verzögerung aus Slider
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+            if (abortRequested) return;
+
             Platform.runLater(() -> {
+                if (abortRequested) return;
+
                 // Jetzt den Zug ausführen
                 gameState.setWhiteTurn(isWhiteTurn);
                 gameState.applyMove(move);
@@ -342,11 +421,13 @@ public class Main extends Application {
                 // Next move after delay
                 new Thread(() -> {
                     try {
-                        Thread.sleep(700);  // Zeit zum Sehen des Zielfeldes
+                        Thread.sleep(delay);  // Verzögerung aus Slider
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
-                    Platform.runLater(() -> executeAIMovesWithDelay(moves, index + 1));
+                    if (!abortRequested) {
+                        Platform.runLater(() -> executeAIMovesWithDelay(moves, index + 1));
+                    }
                 }).start();
             });
         }).start();
@@ -389,6 +470,9 @@ public class Main extends Application {
     }
 
     private void confirmMove() {
+        // Abbruch prüfen
+        if (abortRequested) return;
+
         // Switch player
         isWhiteTurn = !isWhiteTurn;
         currentDice = null;
@@ -401,6 +485,10 @@ public class Main extends Application {
         // Check for game over
         if (gameState.isGameOver()) {
             String winner = gameState.getWinner() ? "Weiß" : "Schwarz";
+
+            // Controls entsperren nach Spielende
+            setControlsLocked(false);
+
             showAlert("Spiel beendet", winner + " hat gewonnen!");
             return;
         }
@@ -500,6 +588,69 @@ public class Main extends Application {
         String player = isWhiteTurn ? "Weiß" : "Schwarz";
         String playerType = isWhiteTurn ? whitePlayerCombo.getValue() : blackPlayerCombo.getValue();
         statusLabel.setText(player + " ist am Zug (" + playerType + ")");
+    }
+
+    /**
+     * Berechnet die Verzögerung für KI-Züge basierend auf dem Slider.
+     * 0% = 2000ms (sehr langsam), 100% = 50ms (sehr schnell)
+     */
+    private int getAiDelay() {
+        double speed = aiSpeedSlider.getValue();
+        // Invertiert: 0% = langsam, 100% = schnell
+        // Bereich: 2000ms bis 50ms
+        return (int) (2000 - (speed / 100.0) * 1950);
+    }
+
+    /**
+     * Sperrt die Controls während eines Spiels.
+     */
+    private void setControlsLocked(boolean locked) {
+        gameInProgress = locked;
+
+        // Toolbar-Buttons
+        newGameButton.setDisable(locked);
+        trainButton.setDisable(locked);
+        loadModelButton.setDisable(locked);
+        whitePlayerCombo.setDisable(locked);
+        blackPlayerCombo.setDisable(locked);
+
+        // Abbruch-Button umgekehrt
+        abortButton.setDisable(!locked);
+
+        // Status-Update
+        if (locked) {
+            abortButton.setStyle("-fx-background-color: #c0392b; -fx-text-fill: white;");
+        } else {
+            abortButton.setStyle("-fx-background-color: #7f8c8d; -fx-text-fill: white;");
+        }
+    }
+
+    /**
+     * Bricht das aktuelle Spiel ab.
+     */
+    private void abortGame() {
+        abortRequested = true;
+        gameInProgress = false;
+
+        // Zurücksetzen
+        gameState = new GameState();
+        boardView.setGameState(gameState);
+        isWhiteTurn = true;
+        currentDice = null;
+        availableMoves = null;
+        selectedFromPoint = -1;
+        diceLabel.setText("Würfel: -");
+        boardView.clearSelection();
+        boardView.clearAiHighlights();
+
+        // Controls entsperren
+        setControlsLocked(false);
+
+        statusLabel.setText("Spiel abgebrochen");
+        showAlert("Abgebrochen", "Das Spiel wurde abgebrochen.");
+
+        // Flag zurücksetzen
+        abortRequested = false;
     }
 
     private void showAlert(String title, String message) {
