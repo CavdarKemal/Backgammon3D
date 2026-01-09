@@ -7,10 +7,12 @@ import javafx.scene.*;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.PhongMaterial;
 import javafx.scene.shape.Box;
 import javafx.scene.transform.Rotate;
+import javafx.scene.transform.Translate;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -54,6 +56,23 @@ public class BoardView extends SubScene {
     private BiConsumer<Integer, Boolean> onCheckerSelected;
     private BiConsumer<Integer, Integer> onMoveExecuted; // (fromPoint, toPoint)
 
+    // ========== KAMERA-STEUERUNG ==========
+    // Rotation um das Brett
+    private final Rotate rotateX;
+    private final Rotate rotateY;
+    private final Translate cameraPosition;
+
+    // Kamera-Werte
+    private double cameraAngleX = -70;   // Neigung (Standard: fast von oben)
+    private double cameraAngleY = 0;     // Drehung um Y-Achse
+    private double cameraDistance = 700; // Abstand zum Brett
+
+    // Maus-Tracking für Kamera
+    private double cameraMouseX, cameraMouseY;
+    private boolean isCameraRotating = false;
+    private boolean isCameraPanning = false;
+    private double cameraPanX = 0, cameraPanZ = 0;
+
     public BoardView(double width, double height, GameState gameState) {
         super(new Group(), width, height, true, SceneAntialiasing.BALANCED);
 
@@ -64,21 +83,25 @@ public class BoardView extends SubScene {
         this.availableDice = new int[0];
 
         // Set background
-        setFill(Color.rgb(40, 40, 40));
+        setFill(Color.rgb(25, 25, 35));  // Dunkler Hintergrund
 
         // Create board group
         boardGroup = new Group();
         root.getChildren().add(boardGroup);
 
-        // Setup camera - mostly top-down with slight tilt for 3D effect
+        // ========== NEUE KAMERA MIT TRANSFORMS ==========
         camera = new PerspectiveCamera(true);
         camera.setNearClip(0.1);
         camera.setFarClip(10000);
-        camera.setFieldOfView(50);
-        camera.setTranslateX(0);
-        camera.setTranslateY(-600);
-        camera.setTranslateZ(0);
-        camera.getTransforms().add(new Rotate(-85, Rotate.X_AXIS)); // Almost top-down
+        camera.setFieldOfView(45);
+
+        // Kamera-Transforms initialisieren
+        rotateX = new Rotate(cameraAngleX, Rotate.X_AXIS);
+        rotateY = new Rotate(cameraAngleY, Rotate.Y_AXIS);
+        cameraPosition = new Translate(0, 0, -cameraDistance);
+
+        // Transforms in der richtigen Reihenfolge: erst Position, dann Rotation
+        camera.getTransforms().addAll(rotateY, rotateX, cameraPosition);
         setCamera(camera);
 
         // Setup lighting
@@ -242,9 +265,30 @@ public class BoardView extends SubScene {
         setOnMousePressed(this::handleMousePressed);
         setOnMouseDragged(this::handleMouseDragged);
         setOnMouseReleased(this::handleMouseReleased);
+        setOnScroll(this::handleScroll);  // Zoom mit Mausrad
     }
 
     private void handleMousePressed(MouseEvent event) {
+        // ========== KAMERA-ROTATION (Rechte Maustaste) ==========
+        if (event.getButton() == MouseButton.SECONDARY) {
+            isCameraRotating = true;
+            cameraMouseX = event.getSceneX();
+            cameraMouseY = event.getSceneY();
+            event.consume();
+            return;
+        }
+
+        // ========== KAMERA-PAN (Mittlere Maustaste oder Strg+Links) ==========
+        if (event.getButton() == MouseButton.MIDDLE ||
+            (event.getButton() == MouseButton.PRIMARY && event.isControlDown())) {
+            isCameraPanning = true;
+            cameraMouseX = event.getSceneX();
+            cameraMouseY = event.getSceneY();
+            event.consume();
+            return;
+        }
+
+        // ========== CHECKER-DRAG (Linke Maustaste) ==========
         if (event.getButton() != MouseButton.PRIMARY) return;
 
         PickResult pickResult = event.getPickResult();
@@ -326,6 +370,47 @@ public class BoardView extends SubScene {
     }
 
     private void handleMouseDragged(MouseEvent event) {
+        // ========== KAMERA-ROTATION ==========
+        if (isCameraRotating) {
+            double deltaX = event.getSceneX() - cameraMouseX;
+            double deltaY = event.getSceneY() - cameraMouseY;
+
+            // Y-Rotation (links/rechts drehen)
+            cameraAngleY += deltaX * 0.5;
+
+            // X-Rotation (neigen) - begrenzt auf sinnvolle Werte
+            cameraAngleX += deltaY * 0.5;
+            cameraAngleX = Math.max(-90, Math.min(-10, cameraAngleX));  // Zwischen -90° und -10°
+
+            rotateX.setAngle(cameraAngleX);
+            rotateY.setAngle(cameraAngleY);
+
+            cameraMouseX = event.getSceneX();
+            cameraMouseY = event.getSceneY();
+            event.consume();
+            return;
+        }
+
+        // ========== KAMERA-PAN ==========
+        if (isCameraPanning) {
+            double deltaX = event.getSceneX() - cameraMouseX;
+            double deltaY = event.getSceneY() - cameraMouseY;
+
+            // Pan basierend auf aktueller Rotation
+            double panSpeed = cameraDistance / 500.0;
+            cameraPanX += deltaX * panSpeed;
+            cameraPanZ += deltaY * panSpeed;
+
+            boardGroup.setTranslateX(cameraPanX);
+            boardGroup.setTranslateZ(cameraPanZ);
+
+            cameraMouseX = event.getSceneX();
+            cameraMouseY = event.getSceneY();
+            event.consume();
+            return;
+        }
+
+        // ========== CHECKER-DRAG ==========
         if (draggedChecker == null) return;
 
         // Calculate mouse delta
@@ -333,13 +418,31 @@ public class BoardView extends SubScene {
         double deltaY = event.getSceneY() - dragStartY;
 
         // Convert 2D mouse movement to 3D (approximate)
-        // Since camera is almost top-down (-85°), X maps to X and Y maps mostly to Z
+        // Berücksichtige Kamera-Rotation für bessere Steuerung
+        double angleRad = Math.toRadians(cameraAngleY);
         double scale = 1.2;
-        draggedChecker.setTranslateX(dragOffsetX + deltaX * scale);
-        draggedChecker.setTranslateZ(dragOffsetZ - deltaY * scale);
+
+        double dx = deltaX * Math.cos(angleRad) - deltaY * Math.sin(angleRad);
+        double dz = -deltaX * Math.sin(angleRad) - deltaY * Math.cos(angleRad);
+
+        draggedChecker.setTranslateX(dragOffsetX + dx * scale);
+        draggedChecker.setTranslateZ(dragOffsetZ + dz * scale);
     }
 
     private void handleMouseReleased(MouseEvent event) {
+        // ========== KAMERA-STEUERUNG BEENDEN ==========
+        if (isCameraRotating) {
+            isCameraRotating = false;
+            event.consume();
+            return;
+        }
+        if (isCameraPanning) {
+            isCameraPanning = false;
+            event.consume();
+            return;
+        }
+
+        // ========== CHECKER-DROP ==========
         if (draggedChecker == null) {
             return;
         }
@@ -363,6 +466,32 @@ public class BoardView extends SubScene {
             // Invalid target - just clean up
             endDrag();
         }
+    }
+
+    /**
+     * Zoom mit Mausrad.
+     */
+    private void handleScroll(ScrollEvent event) {
+        double delta = event.getDeltaY();
+
+        // Zoom-Geschwindigkeit
+        double zoomFactor = 1.1;
+
+        if (delta > 0) {
+            // Reinzoomen
+            cameraDistance /= zoomFactor;
+        } else {
+            // Rauszoomen
+            cameraDistance *= zoomFactor;
+        }
+
+        // Begrenzen des Zooms
+        cameraDistance = Math.max(200, Math.min(2000, cameraDistance));
+
+        // Kamera-Position aktualisieren
+        cameraPosition.setZ(-cameraDistance);
+
+        event.consume();
     }
 
     private int findTargetPoint(double x, double z) {
@@ -529,5 +658,60 @@ public class BoardView extends SubScene {
 
     public void setOnMoveExecuted(BiConsumer<Integer, Integer> callback) {
         this.onMoveExecuted = callback;
+    }
+
+    // ========== KAMERA-STEUERUNG PUBLIC METHODS ==========
+
+    /**
+     * Setzt die Kamera auf die Standardposition zurück.
+     */
+    public void resetCamera() {
+        cameraAngleX = -70;
+        cameraAngleY = 0;
+        cameraDistance = 700;
+        cameraPanX = 0;
+        cameraPanZ = 0;
+
+        rotateX.setAngle(cameraAngleX);
+        rotateY.setAngle(cameraAngleY);
+        cameraPosition.setZ(-cameraDistance);
+        boardGroup.setTranslateX(0);
+        boardGroup.setTranslateZ(0);
+    }
+
+    /**
+     * Setzt die Kamera auf eine Vogelperspektive (direkt von oben).
+     */
+    public void setCameraTopDown() {
+        cameraAngleX = -90;
+        cameraAngleY = 0;
+        cameraDistance = 800;
+
+        rotateX.setAngle(cameraAngleX);
+        rotateY.setAngle(cameraAngleY);
+        cameraPosition.setZ(-cameraDistance);
+    }
+
+    /**
+     * Setzt die Kamera auf eine Schräg-Ansicht (3D-Effekt).
+     */
+    public void setCameraAngled() {
+        cameraAngleX = -55;
+        cameraAngleY = 15;
+        cameraDistance = 750;
+
+        rotateX.setAngle(cameraAngleX);
+        rotateY.setAngle(cameraAngleY);
+        cameraPosition.setZ(-cameraDistance);
+    }
+
+    /**
+     * Gibt Informationen zur Kamerasteuerung zurück.
+     */
+    public String getCameraControlsInfo() {
+        return "Kamera-Steuerung:\n" +
+               "• Rechte Maustaste + Ziehen: Drehen\n" +
+               "• Mausrad: Zoom\n" +
+               "• Mittlere Maustaste / Strg+Links + Ziehen: Verschieben";
     }
 }

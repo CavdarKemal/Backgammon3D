@@ -107,6 +107,19 @@ public class Main extends Application {
         Button loadModelButton = new Button("Modell laden");
         loadModelButton.setOnAction(e -> loadModel());
 
+        // Kamera-Steuerung
+        Button resetCameraButton = new Button("Kamera Reset");
+        resetCameraButton.setOnAction(e -> boardView.resetCamera());
+
+        MenuButton cameraMenu = new MenuButton("Ansicht");
+        MenuItem topDownItem = new MenuItem("Von oben");
+        topDownItem.setOnAction(e -> boardView.setCameraTopDown());
+        MenuItem angledItem = new MenuItem("Schräg");
+        angledItem.setOnAction(e -> boardView.setCameraAngled());
+        MenuItem helpItem = new MenuItem("Hilfe...");
+        helpItem.setOnAction(e -> showAlert("Kamera-Steuerung", boardView.getCameraControlsInfo()));
+        cameraMenu.getItems().addAll(topDownItem, angledItem, new SeparatorMenuItem(), helpItem);
+
         Label whiteLabel = new Label("Weiß:");
         whiteLabel.setStyle("-fx-text-fill: white;");
         whitePlayerCombo = new ComboBox<>();
@@ -123,6 +136,9 @@ public class Main extends Application {
             newGameButton,
             trainButton,
             loadModelButton,
+            new Separator(),
+            resetCameraButton,
+            cameraMenu,
             new Separator(),
             whiteLabel, whitePlayerCombo,
             blackLabel, blackPlayerCombo
