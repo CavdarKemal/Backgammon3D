@@ -274,40 +274,65 @@ public class Main extends Application {
 
     private void executeAIMovesWithDelay(List<Move> moves, int index) {
         if (index >= moves.size()) {
-            // All moves done
+            // All moves done - clear highlights after short delay
             new Thread(() -> {
                 try {
-                    Thread.sleep(300);
+                    Thread.sleep(500);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
-                Platform.runLater(this::confirmMove);
+                Platform.runLater(() -> {
+                    boardView.clearAiHighlights();
+                    confirmMove();
+                });
             }).start();
             return;
         }
 
         Move move = moves.get(index);
-        gameState.setWhiteTurn(isWhiteTurn);
-        gameState.applyMove(move);
-        boardView.updateBoard();
 
-        // Update dice display
-        if (availableMoves == null) {
-            availableMoves = new ArrayList<>();
-            int[] diceValues = Dice.getMovesFromRoll(currentDice[0], currentDice[1]);
-            for (int v : diceValues) availableMoves.add(v);
-        }
-        availableMoves.remove(Integer.valueOf(move.getDieValue()));
-        updateDiceLabel();
+        // KI-Zug hervorheben BEVOR der Zug ausgeführt wird
+        boardView.highlightAiMove(move.getFrom(), move.getTo());
 
-        // Next move after delay
+        // Status aktualisieren, um den Zug anzuzeigen
+        String moveDesc = String.format("KI zieht: %d → %d", move.getFrom(), move.getTo());
+        statusLabel.setText(moveDesc);
+
+        // Kurze Pause, damit der Spieler sieht, von wo nach wo gezogen wird
         new Thread(() -> {
             try {
-                Thread.sleep(400);
+                Thread.sleep(600);  // Zeit zum Sehen des Ursprungsfeldes
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            Platform.runLater(() -> executeAIMovesWithDelay(moves, index + 1));
+            Platform.runLater(() -> {
+                // Jetzt den Zug ausführen
+                gameState.setWhiteTurn(isWhiteTurn);
+                gameState.applyMove(move);
+                boardView.updateBoard();
+
+                // Den bewegten Stein am Zielfeld hervorheben
+                boardView.highlightMovedChecker(move.getTo());
+
+                // Update dice display
+                if (availableMoves == null) {
+                    availableMoves = new ArrayList<>();
+                    int[] diceValues = Dice.getMovesFromRoll(currentDice[0], currentDice[1]);
+                    for (int v : diceValues) availableMoves.add(v);
+                }
+                availableMoves.remove(Integer.valueOf(move.getDieValue()));
+                updateDiceLabel();
+
+                // Next move after delay
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(700);  // Zeit zum Sehen des Zielfeldes
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    Platform.runLater(() -> executeAIMovesWithDelay(moves, index + 1));
+                }).start();
+            });
         }).start();
     }
 

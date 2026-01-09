@@ -26,10 +26,11 @@ public class BoardView extends SubScene {
     private static final double BOARD_DEPTH = 15;
     private static final double BAR_WIDTH = 25;
 
-    // Colors
-    private static final Color BOARD_COLOR = Color.rgb(222, 184, 135);    // Burlywood
-    private static final Color BOARD_EDGE_COLOR = Color.rgb(139, 90, 43); // Saddle brown
-    private static final Color BEAR_OFF_COLOR = Color.rgb(80, 60, 40);
+    // Colors - Edles dunkles Holz-Design
+    private static final Color BOARD_COLOR = Color.rgb(34, 85, 51);       // Dunkelgrün (Filz)
+    private static final Color BOARD_EDGE_COLOR = Color.rgb(101, 67, 33); // Dunkles Mahagoni
+    private static final Color BEAR_OFF_COLOR = Color.rgb(60, 40, 25);    // Dunkles Holz
+    private static final Color BAR_COLOR = Color.rgb(80, 52, 25);         // Mittelbraun
 
     private final Group root;
     private final Group boardGroup;
@@ -198,7 +199,8 @@ public class BoardView extends SubScene {
     private void createBar() {
         barBox = new Box(BAR_WIDTH, BOARD_DEPTH + 5, BOARD_HEIGHT - 40);
         PhongMaterial barMaterial = new PhongMaterial();
-        barMaterial.setDiffuseColor(BOARD_EDGE_COLOR);
+        barMaterial.setDiffuseColor(BAR_COLOR);
+        barMaterial.setSpecularColor(Color.rgb(150, 120, 80));
         barBox.setMaterial(barMaterial);
         barBox.setTranslateY(-2);
         boardGroup.getChildren().add(barBox);
@@ -479,6 +481,45 @@ public class BoardView extends SubScene {
     public void executeMove(int targetPoint) {
         // TODO: Animate checker movement
         updateBoard();
+    }
+
+    /**
+     * Hebt einen KI-Zug hervor (Quell- und Zielfeld).
+     * Wird nach kurzer Zeit automatisch zurückgesetzt.
+     */
+    public void highlightAiMove(int fromPoint, int toPoint) {
+        // Alle vorherigen Highlights zurücksetzen
+        clearAiHighlights();
+
+        // Quellfeld markieren (vor dem Zug - Magenta auf den obersten Stein)
+        if (fromPoint >= 0 && fromPoint < 24) {
+            pointViews[fromPoint].setAiTargetHighlight(true);
+        }
+
+        // Zielfeld markieren
+        if (toPoint >= 0 && toPoint < 24) {
+            pointViews[toPoint].setAiTargetHighlight(true);
+            // Nach dem updateBoard wird der Stein dort sein
+        }
+    }
+
+    /**
+     * Hebt den zuletzt bewegten Stein (am Zielfeld) hervor.
+     */
+    public void highlightMovedChecker(int toPoint) {
+        if (toPoint >= 0 && toPoint < 24) {
+            pointViews[toPoint].setTopCheckerAiMove(true);
+        }
+    }
+
+    /**
+     * Entfernt alle KI-Zug-Highlights.
+     */
+    public void clearAiHighlights() {
+        for (PointView point : pointViews) {
+            point.setAiTargetHighlight(false);
+            point.setTopCheckerAiMove(false);
+        }
     }
 
     // Callback setters

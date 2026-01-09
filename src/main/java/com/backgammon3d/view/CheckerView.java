@@ -15,12 +15,14 @@ public class CheckerView extends Group {
     private static final double RADIUS = 18;
     private static final double HEIGHT = 8;
 
-    private static final Color WHITE_COLOR = Color.WHITE;
-    private static final Color WHITE_HIGHLIGHT = Color.rgb(220, 220, 255);
-    private static final Color BLACK_COLOR = Color.rgb(30, 30, 30);
-    private static final Color BLACK_HIGHLIGHT = Color.rgb(60, 60, 60);
-    private static final Color SELECTED_COLOR = Color.CYAN;
-    private static final Color DRAGGING_COLOR = Color.GOLD;
+    // Weiß = Cyan/Türkis für bessere Sichtbarkeit
+    private static final Color WHITE_COLOR = Color.rgb(0, 200, 220);        // Cyan/Türkis
+    private static final Color WHITE_HIGHLIGHT = Color.rgb(100, 230, 240);  // Heller Cyan
+    private static final Color BLACK_COLOR = Color.rgb(60, 30, 30);         // Dunkles Rot-Braun
+    private static final Color BLACK_HIGHLIGHT = Color.rgb(100, 50, 50);    // Heller Rot-Braun
+    private static final Color SELECTED_COLOR = Color.GOLD;                 // Gold für Auswahl
+    private static final Color DRAGGING_COLOR = Color.ORANGE;               // Orange beim Ziehen
+    private static final Color AI_MOVE_COLOR = Color.MAGENTA;               // Magenta für KI-Züge
 
     private final Cylinder cylinder;
     private final PhongMaterial material;
@@ -29,6 +31,7 @@ public class CheckerView extends Group {
     private boolean isHighlighted;
     private boolean isDragging;
     private boolean isDraggable;
+    private boolean isAiMove;
 
     public CheckerView(boolean isWhite) {
         this.isWhite = isWhite;
@@ -36,6 +39,7 @@ public class CheckerView extends Group {
         this.isHighlighted = false;
         this.isDragging = false;
         this.isDraggable = false;
+        this.isAiMove = false;
 
         // Create checker cylinder
         cylinder = new Cylinder(RADIUS, HEIGHT);
@@ -76,6 +80,8 @@ public class CheckerView extends Group {
         Color color;
         if (isDragging) {
             color = DRAGGING_COLOR;
+        } else if (isAiMove) {
+            color = AI_MOVE_COLOR;  // Magenta für KI-Züge - gut sichtbar!
         } else if (isSelected) {
             color = SELECTED_COLOR;
         } else if (isHighlighted) {
@@ -84,6 +90,19 @@ public class CheckerView extends Group {
             color = isWhite ? WHITE_COLOR : BLACK_COLOR;
         }
         material.setDiffuseColor(color);
+    }
+
+    /**
+     * Markiert diesen Stein als KI-Zug (Magenta Highlight).
+     * Wird nach kurzer Zeit automatisch zurückgesetzt.
+     */
+    public void setAiMove(boolean aiMove) {
+        this.isAiMove = aiMove;
+        updateAppearance();
+    }
+
+    public boolean isAiMove() {
+        return isAiMove;
     }
 
     public void setDragging(boolean dragging) {

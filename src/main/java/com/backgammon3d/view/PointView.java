@@ -20,9 +20,11 @@ public class PointView extends Group {
     private static final double POINT_HEIGHT = 3;
     private static final int TRIANGLE_SEGMENTS = 8;
 
-    private static final Color LIGHT_POINT_COLOR = Color.rgb(210, 180, 140);  // Tan
-    private static final Color DARK_POINT_COLOR = Color.rgb(160, 82, 45);     // Sienna
+    // Besserer Kontrast: Creme und Dunkelbraun
+    private static final Color LIGHT_POINT_COLOR = Color.rgb(245, 222, 179);  // Helles Beige/Creme
+    private static final Color DARK_POINT_COLOR = Color.rgb(139, 69, 19);     // Sattelbraun
     private static final Color HIGHLIGHT_COLOR = Color.LIMEGREEN;
+    private static final Color AI_TARGET_COLOR = Color.rgb(255, 100, 255);    // Magenta für KI-Zielfeld
 
     private final int pointIndex;
     private final boolean isTopRow;
@@ -145,6 +147,24 @@ public class PointView extends Group {
         this.isHighlighted = highlighted;
         Color color = highlighted ? HIGHLIGHT_COLOR : (isDarkPoint ? DARK_POINT_COLOR : LIGHT_POINT_COLOR);
         material.setDiffuseColor(color);
+    }
+
+    /**
+     * Markiert dieses Feld als KI-Zug-Ziel (Magenta).
+     */
+    public void setAiTargetHighlight(boolean highlighted) {
+        Color color = highlighted ? AI_TARGET_COLOR : (isDarkPoint ? DARK_POINT_COLOR : LIGHT_POINT_COLOR);
+        material.setDiffuseColor(color);
+    }
+
+    /**
+     * Markiert den obersten Stein als KI-Zug.
+     */
+    public void setTopCheckerAiMove(boolean aiMove) {
+        CheckerView top = getTopChecker();
+        if (top != null) {
+            top.setAiMove(aiMove);
+        }
     }
 
     public boolean isHighlighted() {
