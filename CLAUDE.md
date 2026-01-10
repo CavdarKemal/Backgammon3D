@@ -139,3 +139,5 @@ https://github.com/CavdarKemal/Backgammon3D
    - `handleHumanMove()`
    - Wie `currentDice` verwendet wird
 3. BoardView.java prüfen - wie Züge auf dem Board angezeigt werden
+4. GUI-Tests, um das Spiel-Verlauf zu prüfen
+
