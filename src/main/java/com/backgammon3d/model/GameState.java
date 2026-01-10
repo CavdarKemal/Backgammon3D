@@ -56,21 +56,23 @@ public class GameState {
 
     /**
      * Standard Backgammon starting position.
+     * White moves from high indices (23) to low (0), bears off at 0.
+     * Black moves from low indices (0) to high (23), bears off at 23.
      */
     private void initializeStandardPosition() {
         Arrays.fill(points, 0);
 
-        // White checkers (positive)
-        points[0] = 2;    // 2 on point 1 (index 0)
-        points[11] = 5;   // 5 on point 12
-        points[16] = 3;   // 3 on point 17
-        points[18] = 5;   // 5 on point 19
+        // White checkers (positive) - start far from home (0)
+        points[23] = 2;   // 2 on point 24 (opponent's home board)
+        points[12] = 5;   // 5 on point 13
+        points[7] = 3;    // 3 on point 8
+        points[5] = 5;    // 5 on point 6 (near home board)
 
-        // Black checkers (negative)
-        points[23] = -2;  // 2 on point 24
-        points[12] = -5;  // 5 on point 13
-        points[7] = -3;   // 3 on point 8
-        points[5] = -5;   // 5 on point 6
+        // Black checkers (negative) - start far from home (23)
+        points[0] = -2;   // 2 on point 1 (opponent's home board)
+        points[11] = -5;  // 5 on point 12
+        points[16] = -3;  // 3 on point 17
+        points[18] = -5;  // 5 on point 19 (near home board)
 
         whiteBar = 0;
         blackBar = 0;

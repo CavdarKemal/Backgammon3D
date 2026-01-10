@@ -188,12 +188,30 @@ public class BoardView extends SubScene {
         double startX = -BOARD_WIDTH / 2 + pointWidth / 2 + 20;
         double gapForBar = BAR_WIDTH + 20;
 
-        // Points 0-11 (bottom row, left to right from white's view)
-        // Points 12-23 (top row, right to left from white's view)
+        // Standard Backgammon board layout (from White/Cyan player's perspective):
+        //
+        //   TOP ROW:    23  22  21  20  19  18 |BAR| 17  16  15  14  13  12
+        //               ← ← ← ← ← ← ← ← ← ← ← (Black moves right to left on top)
+        //
+        //   BOTTOM ROW:  0   1   2   3   4   5 |BAR|  6   7   8   9  10  11
+        //               (White's home board)   |   | ← ← ← ← ← (White moves right to left)
+        //
+        // White (Cyan) moves: high → low indices (starts right, bears off left)
+        // Black moves: low → high indices (starts bottom, bears off top left)
 
         for (int i = 0; i < 24; i++) {
+            // Points 12-23 are TOP row, Points 0-11 are BOTTOM row
             boolean isTopRow = i >= 12;
-            int displayIndex = isTopRow ? (23 - i) : i;
+
+            // Display position within the row (0-11 from left to right)
+            int displayIndex;
+            if (isTopRow) {
+                // Top row: Points 12-23, displayed right to left (23 on left, 12 on right)
+                displayIndex = 23 - i;
+            } else {
+                // Bottom row: Points 0-11, displayed left to right (0 on left, 11 on right)
+                displayIndex = i;
+            }
 
             PointView point = new PointView(i, isTopRow);
 
